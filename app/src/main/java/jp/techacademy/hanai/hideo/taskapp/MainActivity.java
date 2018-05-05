@@ -2,14 +2,20 @@ package jp.techacademy.hanai.hideo.taskapp;
 
 import android.app.AlarmManager;
 import android.app.PendingIntent;
+import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.os.Bundle;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
+import android.text.SpannableStringBuilder;
+import android.view.KeyEvent;
 import android.view.View;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.AdapterView;
+import android.widget.EditText;
+import android.widget.LinearLayout;
 import android.widget.ListView;
 
 import io.realm.Realm;
@@ -30,10 +36,23 @@ public class MainActivity extends AppCompatActivity {
     private ListView mListView;
     private TaskAdapter mTaskAdapter;
 
+    private InputMethodManager inputMethodManager;
+    private android.support.design.widget.CoordinatorLayout mainLayout;
+    private EditText mSelectc;
+    public String cText;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        //　カテゴリーを入力（Enter)した時の処理
+        mSelectc = (EditText) findViewById(R.id.selectc_edit_text);
+        mainLayout = (android.support.design.widget.CoordinatorLayout)findViewById(R.id.mainLayout);
+        inputMethodManager = (InputMethodManager)getSystemService(Context.INPUT_METHOD_SERVICE);
+
+
+
 
         FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
         fab.setOnClickListener(new View.OnClickListener() {
@@ -45,12 +64,38 @@ public class MainActivity extends AppCompatActivity {
         });
 
         // Realmの設定
+//        Realm.init(this);  //Realm初期化
+//        RealmConfiguration config = new RealmConfiguration.Builder().build();
+//        Realm.setDefaultConfiguration(config);
+//      Realm.deleteRealm(congfig);
         mRealm = Realm.getDefaultInstance();
         mRealm.addChangeListener(mRealmListener);
 
         // ListViewの設定
         mTaskAdapter = new TaskAdapter(MainActivity.this);
         mListView = (ListView) findViewById(R.id.listView1);
+
+        //EditTextにリスナーをセット
+        mSelectc.setOnKeyListener(new View.OnKeyListener() {
+
+            //コールバックとしてonKey()メソッドを定義
+            @Override
+            public boolean onKey(View v, int keyCode, KeyEvent event) {
+                //キーが押された時
+                if((event.getAction() == KeyEvent.ACTION_DOWN) ){
+                    //　押されたキーがEnterだった時
+                    if(keyCode == KeyEvent.KEYCODE_ENTER){
+                       //キーボードを閉じる
+                        inputMethodManager.hideSoftInputFromWindow(mSelectc.getWindowToken(), InputMethodManager.RESULT_UNCHANGED_SHOWN);
+                        reloadListView();
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+        });
+
 
         // ListViewをタップしたときの処理
         mListView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
@@ -117,14 +162,36 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void reloadListView() {
-        // Realmデータベースから、「全てのデータを取得して新しい日時順に並べた結果」を取得
-        RealmResults<Task> taskRealmResults = mRealm.where(Task.class).findAllSorted("date", Sort.DESCENDING);
-        // 上記の結果を、TaskList としてセットする
-        mTaskAdapter.setTaskList(mRealm.copyFromRealm(taskRealmResults));
-        // TaskのListView用のアダプタに渡す
-        mListView.setAdapter(mTaskAdapter);
-        // 表示を更新するために、アダプターにデータが変更されたことを知らせる
-        mTaskAdapter.notifyDataSetChanged();
+        //　カテゴリーの文字列を取得
+        SpannableStringBuilder sb = (SpannableStringBuilder)mSelectc.getText();
+        cText=sb.toString();
+        //c = toString(mSelectc.getText());
+
+        if (cText.length()==0){
+            // Realmデータベースから、「新しい日時順に並べた結果」を取得
+            RealmResults<Task> taskRealmResults = mRealm.where(Task.class)
+                    .findAllSorted("date", Sort.DESCENDING);
+
+            // 上記の結果を、TaskList としてセットする
+            mTaskAdapter.setTaskList(mRealm.copyFromRealm(taskRealmResults));
+            // TaskのListView用のアダプタに渡す
+            mListView.setAdapter(mTaskAdapter);
+            // 表示を更新するために、アダプターにデータが変更されたことを知らせる
+            mTaskAdapter.notifyDataSetChanged();
+        } else {
+
+            // Realmデータベースから、「カテゴリーで抽出後、新しい日時順に並べた結果」を取得
+            RealmResults<Task> taskRealmResults = mRealm.where(Task.class)
+                    .equalTo("category", cText).findAllSorted("date", Sort.DESCENDING);
+
+            // 上記の結果を、TaskList としてセットする
+            mTaskAdapter.setTaskList(mRealm.copyFromRealm(taskRealmResults));
+            // TaskのListView用のアダプタに渡す
+            mListView.setAdapter(mTaskAdapter);
+            // 表示を更新するために、アダプターにデータが変更されたことを知らせる
+            mTaskAdapter.notifyDataSetChanged();
+        }
+
     }
 
     @Override
